@@ -1,4 +1,4 @@
-// This is your Prisma schema file,
+// schema.prisma - Lecturer Review Platform
 // learn more about it in the docs: https://pris.ly/d/prisma-schema
 
 generator client {
@@ -7,26 +7,91 @@ generator client {
 
 datasource db {
     provider = "postgresql"
-    // NOTE: When using mysql or sqlserver, uncomment the @db.Text annotations in model Account below
-    // Further reading:
-    // https://next-auth.js.org/adapters/prisma#create-the-prisma-schema
-    // https://www.prisma.io/docs/reference/api-reference/prisma-schema-reference#string
     url      = env("DATABASE_URL")
 }
 
-model Post {
-    id        Int      @id @default(autoincrement())
-    name      String
-    createdAt DateTime @default(now())
-    updatedAt DateTime @updatedAt
+model Campus {
+    id        String     @id @default(cuid())
+    name      String     @unique
+    slug      String     @unique // for URL-friendly campus names
+    createdAt DateTime   @default(now())
+    updatedAt DateTime   @updatedAt
+    lecturers Lecturer[]
 
-    createdBy   User   @relation(fields: [createdById], references: [id])
-    createdById String
-
-    @@index([name])
+    @@index([slug])
 }
 
-// Necessary for Next auth
+model Lecturer {
+    id          String   @id @default(cuid())
+    name        String
+    department  String?
+    campusId    String
+    campus      Campus   @relation(fields: [campusId], references: [id], onDelete: Cascade)
+    createdAt   DateTime @default(now())
+    updatedAt   DateTime @updatedAt
+    
+    // User who added this lecturer (requires authentication)
+    addedBy     User     @relation(fields: [addedById], references: [id])
+    addedById   String
+    
+    reviews     Review[]
+    comments    Comment[]
+    
+    @@unique([name, campusId]) // Same lecturer name can exist across different campuses
+    @@index([name])
+    @@index([campusId])
+}
+
+model Review {
+    id               String   @id @default(cuid())
+    
+    // Core ratings (1-5 scale)
+    teachingQuality  Int      // Teaching effectiveness, clarity, engagement
+    fairness         Int      // Grading fairness, workload appropriateness  
+    helpfulness      Int      // Availability, support, responsiveness
+    wouldRecommend   Boolean  // Simple yes/no recommendation
+    
+    // Optional context fields
+    courseName       String?  // Which course this review is for
+    semester         String?  // e.g., "Fall 2024", "Spring 2025"
+    
+    // Reviewer info (no account needed)
+    reviewerName     String   // Anonymous name provided by reviewer
+    
+    // Relations
+    lecturerId       String
+    lecturer         Lecturer @relation(fields: [lecturerId], references: [id], onDelete: Cascade)
+    
+    createdAt        DateTime @default(now())
+    updatedAt        DateTime @updatedAt
+    
+    @@index([lecturerId])
+    @@index([createdAt])
+}
+
+model Comment {
+    id           String   @id @default(cuid())
+    content      String   @db.Text
+    
+    // Optional context fields
+    courseName   String?  // Which course this comment is about
+    semester     String?  // e.g., "Fall 2024", "Spring 2025"
+    
+    // Commenter info (no account needed)
+    commenterName String  // Anonymous name provided by commenter
+    
+    // Relations
+    lecturerId   String
+    lecturer     Lecturer @relation(fields: [lecturerId], references: [id], onDelete: Cascade)
+    
+    createdAt    DateTime @default(now())
+    updatedAt    DateTime @updatedAt
+    
+    @@index([lecturerId])
+    @@index([createdAt])
+}
+
+// Necessary for NextAuth
 model Account {
     id                       String  @id @default(cuid())
     userId                   String
@@ -55,14 +120,16 @@ model Session {
 }
 
 model User {
-    id            String    @id @default(cuid())
+    id            String     @id @default(cuid())
     name          String?
-    email         String?   @unique
+    email         String?    @unique
     emailVerified DateTime?
     image         String?
     accounts      Account[]
     sessions      Session[]
-    posts         Post[]
+    
+    // Users can add lecturers to the platform
+    addedLecturers Lecturer[]
 }
 
 model VerificationToken {
