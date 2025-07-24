@@ -127,7 +127,8 @@ model User {
     image         String?
     accounts      Account[]
     sessions      Session[]
-    
+    username String? @unique
+    password String?
     // Users can add lecturers to the platform
     addedLecturers Lecturer[]
 }
